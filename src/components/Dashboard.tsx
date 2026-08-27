@@ -101,52 +101,60 @@ export default function Dashboard({
         )}
       </header>
 
-      <StatTiles stats={stats} />
-      <WeeklyChart weeks={weeks} />
+      {/*
+        One grid, two shapes. On a phone these four stack in source order.
+        From 1000px up, grid-template-areas puts the log in a wide left column
+        and the chart plus everything passed in as children into a right rail —
+        no duplicated markup and no JS breakpoint.
+      */}
+      <div className="layout">
+        <StatTiles stats={stats} />
+        <WeeklyChart weeks={weeks} />
 
-      <section>
-        <div className="panel-head" style={{ padding: "0 2px" }}>
-          <h2 className="panel-title">The log</h2>
-          <span className="panel-note">{visible.length} shown</span>
-        </div>
-
-        <div className="filters" style={{ marginBottom: 12 }}>
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              className="chip"
-              aria-pressed={filter === f.id}
-              onClick={() => setFilter(f.id)}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {visible.length > 0 ? (
-          <ul className="cards">
-            {visible.map((app) => (
-              <ApplicationCard key={app.id} app={app} onEdit={onEdit} />
-            ))}
-          </ul>
-        ) : (
-          <div className="empty">
-            <h3>
-              {apps.length
-                ? "Nothing in this filter"
-                : "No applications logged yet"}
-            </h3>
-            <p>
-              {apps.length
-                ? "Try “Everything”."
-                : "The first one shows up here — role, pay, location, and exactly how long it has been quiet."}
-            </p>
+        <section className="log-section">
+          <div className="panel-head" style={{ padding: "0 2px" }}>
+            <h2 className="panel-title">The log</h2>
+            <span className="panel-note">{visible.length} shown</span>
           </div>
-        )}
-      </section>
 
-      {children}
+          <div className="filters" style={{ marginBottom: 12 }}>
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className="chip"
+                aria-pressed={filter === f.id}
+                onClick={() => setFilter(f.id)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {visible.length > 0 ? (
+            <ul className="cards">
+              {visible.map((app) => (
+                <ApplicationCard key={app.id} app={app} onEdit={onEdit} />
+              ))}
+            </ul>
+          ) : (
+            <div className="empty">
+              <h3>
+                {apps.length
+                  ? "Nothing in this filter"
+                  : "No applications logged yet"}
+              </h3>
+              <p>
+                {apps.length
+                  ? "Try “Everything”."
+                  : "The first one shows up here — role, pay, location, and exactly how long it has been quiet."}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {children && <div className="rail">{children}</div>}
+      </div>
     </main>
   );
 }

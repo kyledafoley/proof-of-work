@@ -13,7 +13,7 @@ export default function WeeklyChart({ weeks }: { weeks: Week[] }) {
   const max = Math.max(1, ...weeks.map((w) => w.count));
 
   return (
-    <section className="panel">
+    <section className="panel chart-panel">
       <div className="panel-head">
         <h2 className="panel-title">Applications per week</h2>
         <span className="panel-note">last 8 weeks</span>

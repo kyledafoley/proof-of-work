@@ -743,6 +743,22 @@ body {
     position: sticky;
     bottom: 14px;
     z-index: 4;
+    padding-top: 12px;
+  }
+  /* The button stays reachable while scrolling, so it passes over whatever is
+     behind it. The fade makes that read as a floating bar instead of a button
+     dropped on top of someone else's heading. */
+  .addbar::before {
+    content: "";
+    position: absolute;
+    inset: -6px -18px -20px;
+    background: linear-gradient(
+      to top,
+      var(--color-paper) 58%,
+      color-mix(in srgb, var(--color-paper) 0%, transparent)
+    );
+    z-index: -1;
+    pointer-events: none;
   }
   .addbar .btn {
     box-shadow: var(--shadow-lift);
@@ -905,5 +921,100 @@ body {
     text-align: center;
     color: var(--color-ink-3);
     font-size: 12.5px;
+  }
+}
+
+/* ==========================================================================
+   Wide screens.
+   The phone layout is the base: one column, everything in source order.
+   Everything below only adds a second column and more room once there is
+   enough width to earn it.
+   ========================================================================== */
+
+@layer components {
+  .layout {
+    display: grid;
+    gap: 26px;
+    align-items: start;
+  }
+  .rail {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    min-width: 0;
+  }
+  .log-section {
+    min-width: 0;
+  }
+
+  @media (min-width: 1000px) {
+    .page {
+      max-width: 1140px;
+      padding: 28px 32px 80px;
+      gap: 30px;
+    }
+
+    .layout {
+      grid-template-columns: minmax(0, 1fr) 340px;
+      grid-template-areas:
+        "tiles tiles"
+        "log   chart"
+        "log   rail"
+        "log   .";
+      /* The trailing row soaks up the slack when the log column is taller
+         than the rail; without it grid spreads that height between the chart
+         and rail rows and opens a gap between them. */
+      grid-template-rows: auto auto auto 1fr;
+      column-gap: 26px;
+      row-gap: 24px;
+    }
+    .tiles { grid-area: tiles; }
+    .chart-panel { grid-area: chart; }
+    .log-section { grid-area: log; }
+    .rail { grid-area: rail; }
+
+    /* The rail follows you down a long log. */
+    .rail {
+      position: sticky;
+      top: 24px;
+    }
+    .addbar {
+      position: static;
+      padding-top: 0;
+    }
+    .addbar::before {
+      display: none;
+    }
+
+    /* The masthead gets room to breathe rather than just stretching. */
+    .masthead { gap: 16px; }
+    .hero-num { font-size: 124px; }
+    .hero-cap { font-size: 27px; }
+    .hero-sub { font-size: 16px; max-width: 62ch; }
+
+    .bars { height: 120px; }
+
+    /* Wider cards can afford to put the title and status on one line with
+       the metadata spread out rather than wrapping. */
+    .card { padding: 18px 20px 16px; }
+    .meta { gap: 6px 32px; }
+    .desc { max-width: 72ch; }
+  }
+
+  /* Very wide: two columns of cards rather than one very long one. */
+  @media (min-width: 1500px) {
+    .page { max-width: 1400px; }
+    .layout { grid-template-columns: minmax(0, 1fr) 360px; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-content: start;
+    }
+  }
+
+  /* Landing page at desktop width. */
+  @media (min-width: 1000px) {
+    .landing-h1 { font-size: 76px; }
+    .landing-sub { font-size: 18px; }
   }
 }
