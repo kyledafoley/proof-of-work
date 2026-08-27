@@ -1,11 +1,6 @@
-import type { Metadata } from "next";
-import AdminClient from "@/components/admin/AdminClient";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Add an application",
-  robots: { index: false, follow: false },
-};
-
-export default function AdminPage() {
-  return <AdminClient />;
+/** The route was /admin back when there was exactly one writer. Keep the bookmark alive. */
+export default function AdminRedirect() {
+  redirect("/app");
 }

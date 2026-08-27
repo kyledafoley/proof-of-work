@@ -4,6 +4,7 @@ const STACK = [
   "Supabase Postgres",
   "Row Level Security",
   "Supabase Auth",
+  "Edge Functions",
   "Tailwind v4",
   "Vercel",
 ];
@@ -11,19 +12,21 @@ const STACK = [
 export default function Colophon({ repoUrl }: { repoUrl?: string }) {
   return (
     <section className="colophon">
-      <h2>About this page</h2>
+      <h2>About this</h2>
       <p>
-        A job search is mostly invisible work — you send applications into a void
-        and have nothing to point at. So I made the void countable. Every row
-        here is a real application, logged as I send it, with a running count of
-        how long each one has stayed quiet.
+        Built by Kyle Foley. It started as one page so my girlfriend would stop
+        asking whether I&apos;d applied to anything. It turned out other people
+        wanted the same receipt, so now anyone can keep one.
       </p>
       <p>
-        The page is server-rendered from a Postgres table. Row Level Security
-        makes it world-readable and writable only by an account on an allowlist,
-        so the API key in this page can read and nothing else — the write rules
-        live in the database, not in the client, and hold no matter what anyone
-        sends at them.
+        Every row belongs to an owner, and isolation is enforced in Postgres
+        rather than in the app: Row Level Security restricts each table to the
+        signed-in user&apos;s own rows, so the queries carry no user filter at all
+        and there is no client-side check to forget or bypass. Public share links
+        go through two parameterized, read-only database functions that return
+        only the columns a visitor should see, for a 96-bit token, and only while
+        its owner leaves sharing on — which is why the app ships no service-role
+        key and holds no credential that can read anyone else&apos;s data.
       </p>
       <ul className="stack">
         {STACK.map((item) => (

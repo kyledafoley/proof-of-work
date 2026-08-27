@@ -1,8 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Application } from "@/lib/types";
-
-const SELECT =
-  "id, role, company, description, location, salary, applied_on, status";
+import type { Application, SharedOwner } from "@/lib/types";
 
 export const hasSupabaseEnv = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -10,9 +7,8 @@ export const hasSupabaseEnv = Boolean(
 );
 
 /**
- * Cookie-free client for the public page. Skipping cookies keeps the route
- * statically renderable, so the dashboard is served from the edge cache and
- * revalidated on a timer rather than rebuilt per visitor.
+ * Cookie-free client for pages a logged-out visitor can see. Skipping cookies
+ * keeps those routes statically renderable and served from cache.
  */
 function publicClient() {
   return createClient(
@@ -22,21 +18,52 @@ function publicClient() {
   );
 }
 
-export async function getApplications(): Promise<{
+export type SharedLog = {
+  owner: SharedOwner;
   apps: Application[];
+  /** Distinguishes "no such link" from "the link works, the log is empty". */
+  found: boolean;
   error: string | null;
-}> {
+};
+
+const EMPTY: SharedLog = {
+  owner: { display_name: null, headline: null },
+  apps: [],
+  found: false,
+  error: null,
+};
+
+/**
+ * Reads one person's shared log by its unlisted token.
+ *
+ * Both calls are RPCs rather than table selects: `anon` has no direct access to
+ * `applications` at all. The database functions do the token match, so an
+ * invalid or revoked token simply returns nothing — there is no code path here
+ * that could widen the query.
+ */
+export async function getSharedLog(token: string): Promise<SharedLog> {
   if (!hasSupabaseEnv) {
-    return { apps: [], error: "Supabase environment variables are not set." };
+    return { ...EMPTY, error: "Supabase environment variables are not set." };
   }
+  if (!token) return EMPTY;
 
-  const { data, error } = await publicClient()
-    .from("applications")
-    .select(SELECT)
-    .order("applied_on", { ascending: false });
+  const supabase = publicClient();
 
-  if (error) return { apps: [], error: error.message };
-  return { apps: (data ?? []) as Application[], error: null };
+  const [ownerResult, appsResult] = await Promise.all([
+    supabase.rpc("shared_owner", { p_token: token }),
+    supabase.rpc("shared_applications", { p_token: token }),
+  ]);
+
+  if (ownerResult.error) return { ...EMPTY, error: ownerResult.error.message };
+  if (appsResult.error) return { ...EMPTY, error: appsResult.error.message };
+
+  const ownerRow = (ownerResult.data ?? [])[0] as SharedOwner | undefined;
+  if (!ownerRow) return EMPTY;
+
+  return {
+    owner: ownerRow,
+    apps: (appsResult.data ?? []) as Application[],
+    found: true,
+    error: null,
+  };
 }
-
-export { SELECT as APPLICATION_COLUMNS };

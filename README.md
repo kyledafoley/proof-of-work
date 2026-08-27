@@ -1,84 +1,111 @@
 # Proof of Work
 
-A public, running log of every job I've applied to — role, description, location,
-salary, date, and how long each one has stayed quiet.
+A job search is invisible work. You send applications into a void, hear nothing
+back, and have nothing to point at when someone asks how it's going. This makes
+the void countable — and gives you one link to send instead of an answer.
 
-The dashboard at `/` is world-readable. Entries are added at `/admin`, which is
-gated by Supabase Auth and, underneath that, by Row Level Security: the anon key
-shipped to the browser can `SELECT` and nothing else. Writes require a session
-whose user id appears in `public.app_admins`, a table nobody can enumerate or
-add themselves to. Deleting the front end would not change that.
+Anyone can sign up. Each person's log is private to them until they share its
+link.
+
+## Security model
+
+The interesting part, and the reason the code has no permission checks in it.
+
+**Isolation lives in Postgres, not the app.** Every `applications` row carries an
+`owner_id`, and RLS policies restrict all four verbs to `owner_id = auth.uid()`.
+The client queries carry no user filter at all — `select * from applications`
+returns your rows and only yours, because the database will not return anything
+else. There is no client-side check to forget, and editing the JavaScript in a
+browser gains an attacker nothing.
+
+**Logged-out visitors have no table access whatsoever.** `anon` holds no policy
+on `applications` or `profiles`. The public share page reaches data through
+exactly two functions, `shared_owner(token)` and `shared_applications(token)`,
+which:
+
+- take the token as a parameter and match it exactly — no pattern, no
+  interpolation, no way to widen the result set;
+- filter on `is_shared`, so revoking a link takes effect on the next request;
+- return a fixed column list that omits `owner_id`, timestamps, and everything
+  else internal.
+
+Tokens are 12 random bytes rendered URL-safe — ~96 bits, unguessable, and
+rotatable from the app. `robots` is set to `noindex` on share pages.
+
+**No service-role key is deployed with the web app.** The only place one exists
+is the `delete-account` edge function, which never accepts a user id — it
+derives the caller's identity from their own access token, so the most a request
+can do is delete its sender.
+
+Five `security definer` linter warnings are expected and intentional: the two
+share functions (callable by `anon`, which is the whole point) and
+`rotate_share_token` (signed-in only). Every other function has been revoked
+from `anon` and `authenticated` in `0003`.
 
 ## Stack
 
-| Layer    | Choice |
-| -------- | ------ |
+| Layer | Choice |
+| ----- | ------ |
 | Framework | Next.js 15, App Router, React 19, TypeScript |
-| Styling  | Tailwind v4, design tokens in `globals.css`, light + dark |
-| Data     | Supabase Postgres, RLS on every path |
-| Auth     | Supabase Auth (email + password), cookie sessions via `@supabase/ssr` |
-| Hosting  | Vercel |
+| Styling | Tailwind v4, design tokens in `globals.css`, light + dark |
+| Data | Supabase Postgres, RLS on every table and every verb |
+| Auth | Supabase Auth (email + password), cookie sessions via `@supabase/ssr` |
+| Serverless | Supabase Edge Function for account deletion |
+| Hosting | Vercel |
 
-`/` is statically rendered and revalidated every 30 seconds, so visitors are
-served from cache. `/admin` is client-rendered against the same RLS-protected
-API.
+## Routes
+
+| Route | What it is |
+| ----- | ---------- |
+| `/` | Landing page, plus a featured live log if `NEXT_PUBLIC_FEATURED_SHARE_TOKEN` is set |
+| `/app` | Your own log — add, edit, delete, share settings, account settings |
+| `/s/[token]` | Someone's shared log, read only, `noindex` |
+| `/reset` | Password reset landing, reached from the email link |
+| `/admin` | Redirects to `/app` (the route name from the single-user era) |
 
 ## Setup
 
 ### 1. Database
 
-Create a Supabase project, open the SQL editor, and run
-[`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql). It
-creates:
+Run the migrations in `supabase/migrations/` in order against a fresh Supabase
+project. `0001` creates the log, `0002` makes it multi-tenant, `0003` tightens
+function grants.
 
-- `public.applications` — the log, with a `status` enum and length checks
-- `public.app_admins` — the writers allowlist. One policy: a signed-in user may
-  read **their own row only**. No write policy exists, so nobody can enumerate
-  the writers or add themselves.
-- five policies on top of that: world-readable `SELECT`, and
-  `INSERT`/`UPDATE`/`DELETE` gated on an `EXISTS` against the allowlist
-- a trigger that maintains `updated_at` server-side
-
-There is deliberately no `SECURITY DEFINER` function and no RPC — the self-read
-policy on `app_admins` is all the membership check needs, which keeps the API
-surface to two tables. `supabase --linter` reports zero security findings.
-
-### 2. Your account
-
-In **Authentication → Users**, add a user with your email and a password. Copy
-its UID, then in the SQL editor:
-
-```sql
-insert into public.app_admins (user_id) values ('<your-user-uid>');
-```
-
-Then in **Authentication → Sign In / Providers**, turn **"Allow new users to
-sign up"** off. Without that, anyone could create an account — they still
-couldn't write anything, but there is no reason to let them try.
-
-### 3. Environment
-
-Copy `.env.example` to `.env.local` and fill in the project URL and anon key from
-**Project Settings → API**:
+### 2. Edge function
 
 ```bash
-cp .env.example .env.local
+supabase functions deploy delete-account
+```
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are
+injected by the platform — nothing to configure.
+
+### 3. Auth settings
+
+In the Supabase dashboard:
+
+- **Sign In / Providers** → leave signups **on** (this is a multi-user app now)
+- **Passwords** → enable leaked-password protection
+- **SMTP** → **required before real users sign up.** Supabase's built-in sender
+  is rate-limited to a couple of emails an hour and is not for production.
+  Confirmations and password resets will silently fail to arrive without a real
+  provider (Resend, Postmark, SES) configured under Project Settings → Auth →
+  SMTP.
+- **URL Configuration** → add your production URL to the redirect allowlist, or
+  confirmation and reset links will bounce back to localhost.
+
+### 4. Environment
+
+```bash
+cp .env.example .env.local   # fill in the values
 npm install
 npm run dev
 ```
 
-### 4. Deploy
+### 5. Deploy
 
-Push to GitHub, import the repo at [vercel.com/new](https://vercel.com/new), and
-add the same three variables under **Settings → Environment Variables**:
-
-| Variable | Value |
-| -------- | ----- |
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the anon / publishable key |
-| `NEXT_PUBLIC_REPO_URL` | optional; linked from the page footer |
-
-Both Supabase values are meant to be public — RLS is the boundary, not the key.
+Push to GitHub, import at [vercel.com/new](https://vercel.com/new), and set the
+same variables under Settings → Environment Variables.
 
 ## Scripts
 
@@ -93,7 +120,15 @@ npm run typecheck  # tsc --noEmit
 - Dates are stored as calendar `date` values and parsed component-wise
   (`src/lib/derive.ts`) so a timezone west of UTC never shifts an application by
   a day.
-- "Gone quiet" is derived, not stored: an application counts as quiet if it is
-  marked `ghosted`, or still `applied` after 21 days.
-- Fonts are self-hosted at build time by `next/font`, so no request leaves the
-  page for typography.
+- "Gone quiet" is derived, not stored: quiet means `ghosted`, or still `applied`
+  after 21 days.
+- A profile row is created by a trigger on `auth.users`, so a half-registered
+  account cannot exist.
+- Fonts are self-hosted at build time by `next/font`.
+
+## Not built yet
+
+- Rate limiting or captcha on signup. Worth adding before this is linked
+  anywhere public — Supabase supports hCaptcha and Turnstile natively.
+- Any abuse reporting path for shared content.
+- Export (CSV / JSON) of your own log.

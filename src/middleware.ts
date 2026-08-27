@@ -30,7 +30,20 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Someone already signed in has no use for the pitch — send them to their
+  // own log. `?home` is the escape hatch for looking at the landing page
+  // without signing out.
+  const { pathname, searchParams } = request.nextUrl;
+  if (user && pathname === "/" && !searchParams.has("home")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/app";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
 
   return response;
 }

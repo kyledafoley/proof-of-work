@@ -25,11 +25,15 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 export default function Dashboard({
   apps,
+  eyebrow = "Job search",
+  headline,
   onEdit,
   children,
 }: {
   apps: Application[];
-  /** Passed only in the admin view; its absence is what makes this read-only. */
+  eyebrow?: string;
+  headline?: string | null;
+  /** Passed only where the viewer owns the log; its absence makes this read-only. */
   onEdit?: (app: Application) => void;
   children?: React.ReactNode;
 }) {
@@ -51,7 +55,7 @@ export default function Dashboard({
     <main className="page">
       <div className="topbar">
         <div className="eyebrow">
-          <span>Job search</span>
+          <span>{eyebrow}</span>
           <span className="live">live</span>
         </div>
         <ThemeToggle />
@@ -67,30 +71,34 @@ export default function Dashboard({
           </div>
         </div>
         <div className="hero-rule" />
-        <p className="hero-sub">
-          {stats.total === 0 ? (
-            "Nothing logged yet. The tally starts with the next one."
-          ) : (
-            <>
-              Most recent: <b>{agoWords(stats.mostRecent)}</b>.{" "}
-              {stats.replies === 0 ? (
-                <>
-                  Replies so far: <b>zero</b>.
-                </>
-              ) : (
-                <>
-                  <b>{stats.replies}</b> wrote back.
-                </>
-              )}
-              {stats.quiet > 0 && (
-                <>
-                  {" "}
-                  <b>{stats.quiet}</b> never did.
-                </>
-              )}
-            </>
-          )}
-        </p>
+        {headline ? (
+          <p className="hero-sub">{headline}</p>
+        ) : (
+          <p className="hero-sub">
+            {stats.total === 0 ? (
+              "Nothing logged yet. The tally starts with the next one."
+            ) : (
+              <>
+                Most recent: <b>{agoWords(stats.mostRecent)}</b>.{" "}
+                {stats.replies === 0 ? (
+                  <>
+                    Replies so far: <b>zero</b>.
+                  </>
+                ) : (
+                  <>
+                    <b>{stats.replies}</b> wrote back.
+                  </>
+                )}
+                {stats.quiet > 0 && (
+                  <>
+                    {" "}
+                    <b>{stats.quiet}</b> never did.
+                  </>
+                )}
+              </>
+            )}
+          </p>
+        )}
       </header>
 
       <StatTiles stats={stats} />

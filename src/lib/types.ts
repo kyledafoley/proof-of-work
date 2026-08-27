@@ -11,6 +11,20 @@ export type Application = {
   status: Status;
 };
 
+export type Profile = {
+  id: string;
+  display_name: string | null;
+  headline: string | null;
+  share_token: string;
+  is_shared: boolean;
+};
+
+/** What a visitor to a share link sees about whose log it is. */
+export type SharedOwner = {
+  display_name: string | null;
+  headline: string | null;
+};
+
 export type StatusMeta = {
   id: Status;
   label: string;
