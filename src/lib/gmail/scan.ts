@@ -92,6 +92,31 @@ export function belongsTo(app: Application, meta: { from: string; subject: strin
   return hay.includes(key) || hay.includes(domainish) || (first.length >= 4 && hay.includes(first));
 }
 
+/** Senders that are never a company replying to you, whatever they say:
+ *  job boards, alert digests, and Google's own account notices (which
+ *  mention "amazon.jobs" and the like in passing). */
+const NOISE_SENDERS =
+  /(^|[@.])(linkedin\.com|indeed\.com|glassdoor\.com|ziprecruiter\.com|dice\.com|monster\.com|handshake\.com|wellfound\.com|builtin\.com|lensa\.com|jobcase\.com|google\.com|accounts\.google\.com|amazonbusiness\.com|business\.amazon\.com)$/i;
+
+/** Words a message about YOUR application contains. A plain "reply" that
+ *  has none of them and arrives from a mailing system is a newsletter that
+ *  happens to mention the company. */
+const JOB_WORDS =
+  /\b(applicat|applied|apply|candidate|position|role|resume|cv\b|recruit|hiring|talent|interview|opportunit|career|your profile|job\b|offer)/i;
+
+/** Is this message worth showing at all? Runs after classify(). */
+export function isNoise(meta: { from: string; subject: string; snippet: string; bulk: boolean }, kind: EmailKind): boolean {
+  const addr = (meta.from.match(/<([^>]+)>/)?.[1] ?? meta.from).trim().toLowerCase();
+  const domain = addr.split("@")[1] ?? "";
+  if (NOISE_SENDERS.test(domain)) return true;
+  if (kind === "reply") {
+    const t = `${meta.subject}\n${meta.snippet}`;
+    // Bulk mail with nothing about an application in it is marketing.
+    if (meta.bulk && !JOB_WORDS.test(t)) return true;
+  }
+  return false;
+}
+
 export const KIND_LABEL: Record<EmailKind, string> = {
   interview: "Interview",
   rejection: "Rejection",

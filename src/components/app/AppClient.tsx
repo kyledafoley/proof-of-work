@@ -152,7 +152,7 @@ export default function AppClient() {
 
         {/* Below the share link, above settings: it is a working tool, not
             a setting, and the thing you reach for after a quiet week. */}
-        <EmailScanCard supabase={supabase} apps={apps} onAppsChanged={load} />
+        <EmailScanCard supabase={supabase} mode="summary" apps={apps} onAppsChanged={load} />
 
         {showSettings && profile && (
           <SettingsCard

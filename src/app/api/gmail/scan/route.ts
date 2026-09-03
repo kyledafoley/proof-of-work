@@ -4,7 +4,7 @@ import { decryptToken } from "@/lib/gmail/crypto";
 import {
   ReconnectNeeded, accessTokenFromRefresh, getMessageMeta, listMessageIds, parseFrom,
 } from "@/lib/gmail/google";
-import { belongsTo, classify, queryFor, sweepQuery } from "@/lib/gmail/scan";
+import { belongsTo, classify, isNoise, queryFor, sweepQuery } from "@/lib/gmail/scan";
 import type { Application } from "@/lib/types";
 
 // The scan. Runs as the signed-in user: the applications it reads and the
@@ -85,7 +85,11 @@ export async function POST() {
         if (outOfTime()) { more = true; break; }
         const meta = await getMessageMeta(accessToken, id);
         if (!belongsTo(app, meta)) continue;
+        const kind = classify(meta.subject, meta.snippet);
+        // Remembered as seen either way, so a newsletter is not re-fetched
+        // on every scan — but only real matches are stored.
         seen.add(id);
+        if (isNoise(meta, kind)) continue;
         const from = parseFrom(meta.from);
         found.push({
           owner_id: user.id,
@@ -97,7 +101,7 @@ export async function POST() {
           subject: meta.subject || null,
           snippet: meta.snippet || null,
           received_at: meta.date.toISOString(),
-          kind: classify(meta.subject, meta.snippet),
+          kind,
         });
       }
     }
@@ -112,9 +116,8 @@ export async function POST() {
         if (outOfTime()) { more = true; break; }
         const meta = await getMessageMeta(accessToken, id);
         const kind = classify(meta.subject, meta.snippet);
-        // A bare "we received your application" from a company not in the
-        // log is the useful kind of miss; "other" is just mail.
         seen.add(id);
+        if (isNoise(meta, kind)) continue;
         const from = parseFrom(meta.from);
         found.push({
           owner_id: user.id,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { KIND_LABEL, type EmailKind } from "@/lib/gmail/scan";
 import { statusMeta, type Application, type Status } from "@/lib/types";
@@ -52,17 +53,29 @@ function when(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
+/**
+ * Two faces of the same panel. On the log page (`summary`) it is a card:
+ * connect, scan, how many messages want attention, and a link. On
+ * /app/inbox (`full`) it is the page: the same controls plus every match,
+ * grouped by application. A list of forty emails does not belong in a
+ * sidebar, and a scan button does not belong two clicks away.
+ */
 export default function EmailScanCard({
   supabase,
-  apps,
+  mode,
+  apps: appsProp,
   onAppsChanged,
 }: {
   supabase: SupabaseClient;
-  apps: Application[];
-  onAppsChanged: () => Promise<void> | void;
+  mode: "summary" | "full";
+  /** The log, when the parent already has it (summary mode). */
+  apps?: Application[];
+  onAppsChanged?: () => Promise<void> | void;
 }) {
   const [conn, setConn] = useState<Connection | null | undefined>(undefined);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [ownApps, setOwnApps] = useState<Application[]>([]);
+  const apps = appsProp ?? ownApps;
   const [scanning, setScanning] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,16 +83,22 @@ export default function EmailScanCard({
   const [showDismissed, setShowDismissed] = useState(false);
 
   const load = useCallback(async () => {
-    const [{ data: c }, { data: m }] = await Promise.all([
+    const [{ data: c }, { data: m }, apps] = await Promise.all([
       supabase.from("gmail_connections").select("email, connected_at, last_scan_at").maybeSingle(),
       supabase.from("email_matches")
         .select("id, application_id, gmail_thread_id, from_name, from_address, subject, snippet, received_at, kind, dismissed")
         .order("received_at", { ascending: false })
         .limit(400),
+      appsProp
+        ? Promise.resolve(null)
+        : supabase.from("applications")
+            .select("id, role, company, description, location, salary, applied_on, status")
+            .order("applied_on", { ascending: false }),
     ]);
     setConn((c as Connection | null) ?? null);
     setMatches((m ?? []) as Match[]);
-  }, [supabase]);
+    if (apps?.data) setOwnApps(apps.data as Application[]);
+  }, [supabase, appsProp]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -152,7 +171,8 @@ export default function EmailScanCard({
     const { error } = await supabase.from("applications").update({ status }).eq("id", m.application_id);
     if (error) { setError(error.message); return; }
     await dismiss(m);
-    await onAppsChanged();
+    if (onAppsChanged) await onAppsChanged();
+    else setOwnApps((as) => as.map((a) => (a.id === m.application_id ? { ...a, status } : a)));
   }
 
   async function clearAll() {
@@ -174,8 +194,12 @@ export default function EmailScanCard({
   }, [visible, byApp]);
   const missed = visible.filter((m) => !m.application_id || !byApp.has(m.application_id));
   const dismissedCount = matches.filter((m) => m.dismissed).length;
+  const openCount = matches.filter((m) => !m.dismissed).length;
+  const attention = matches.filter((m) => !m.dismissed && (m.kind === "interview" || m.kind === "rejection")).length;
 
   if (conn === undefined) return null;
+
+  const summary = mode === "summary";
 
   return (
     <section className="panel">
@@ -212,7 +236,7 @@ export default function EmailScanCard({
             <button type="button" className="btn btn-ghost btn-small" onClick={disconnect} disabled={scanning}>
               Disconnect
             </button>
-            {matches.length > 0 && (
+            {!summary && matches.length > 0 && (
               <button type="button" className="btn btn-ghost btn-small" onClick={clearAll} disabled={scanning}>
                 Clear results
               </button>
@@ -224,7 +248,16 @@ export default function EmailScanCard({
       {notice && <p className="form-note" style={{ marginTop: 10 }}>{notice}</p>}
       {error && <p className="form-error" style={{ marginTop: 10 }}>{error}</p>}
 
-      {grouped.length > 0 && (
+      {summary && conn && matches.length > 0 && (
+        <p className="form-note" style={{ marginTop: 12 }}>
+          {openCount === 0
+            ? "Everything found so far has been handled."
+            : `${openCount} message${openCount === 1 ? "" : "s"} to look at${attention ? ` — ${attention} that look like an answer` : ""}.`}{" "}
+          <Link href="/app/inbox" className="linkish">Review matches</Link>
+        </p>
+      )}
+
+      {!summary && grouped.length > 0 && (
         <div className="scan-groups">
           {grouped.map(([appId, ms]) => {
             const app = byApp.get(appId)!;
@@ -244,7 +277,7 @@ export default function EmailScanCard({
         </div>
       )}
 
-      {missed.length > 0 && (
+      {!summary && missed.length > 0 && (
         <div className="scan-groups">
           <div className="scan-group">
             <div className="scan-group-head">
@@ -255,11 +288,11 @@ export default function EmailScanCard({
         </div>
       )}
 
-      {conn && matches.length > 0 && grouped.length === 0 && missed.length === 0 && (
+      {!summary && conn && matches.length > 0 && grouped.length === 0 && missed.length === 0 && (
         <p className="form-note" style={{ marginTop: 12 }}>Everything found so far has been handled.</p>
       )}
 
-      {dismissedCount > 0 && (
+      {!summary && dismissedCount > 0 && (
         <p className="form-note" style={{ marginTop: 12 }}>
           <button type="button" className="linkish" onClick={() => setShowDismissed((s) => !s)}>
             {showDismissed ? "Hide" : "Show"} {dismissedCount} handled

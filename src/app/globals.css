@@ -911,6 +911,11 @@ body {
   }
 
   /* ---------- inbox scan ---------- */
+  .inbox-page { max-width: 760px; margin: 0 auto; }
+  .inbox-page .scan-groups { margin-top: 18px; gap: 14px; }
+  .inbox-page .scan-group { padding: 12px 16px 6px; }
+  .inbox-page .scan-subject { font-size: 15px; }
+  .inbox-page .scan-snippet { -webkit-line-clamp: 3; font-size: 13px; }
   .scan-groups {
     display: grid;
     gap: 10px;

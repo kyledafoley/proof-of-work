@@ -123,7 +123,22 @@ export type MessageMeta = {
   subject: string;
   date: Date;
   snippet: string;
+  /** Sent by a mailing system: List-Unsubscribe or Precedence: bulk/list.
+   *  Marketing and job alerts carry these; a recruiter writing to you does
+   *  not. ATS confirmations sometimes do, which is why it is a signal, not a
+   *  verdict — see scan.ts. */
+  bulk: boolean;
 };
+
+/** Gmail's snippet is HTML-escaped ("you&#39;d"). Undo the handful of
+ *  entities that actually occur; anything else stays as it came. */
+function unescapeHtml(s: string): string {
+  return s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
+}
 
 /** Headers and the snippet only — `format=metadata` never returns the body,
  *  so a body cannot end up in a log line, a cache or our database by accident. */
@@ -131,15 +146,17 @@ export async function getMessageMeta(accessToken: string, id: string): Promise<M
   const j = await gmailGet<{
     id: string; threadId: string; snippet?: string; internalDate?: string;
     payload?: { headers?: { name: string; value: string }[] };
-  }>(accessToken, `messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date`);
+  }>(accessToken, `messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=List-Unsubscribe&metadataHeaders=Precedence`);
   const h = (name: string) => j.payload?.headers?.find((x) => x.name.toLowerCase() === name)?.value ?? "";
+  const precedence = h("precedence").toLowerCase();
   return {
     id: j.id,
     threadId: j.threadId,
     from: h("from"),
     subject: h("subject"),
     date: j.internalDate ? new Date(Number(j.internalDate)) : new Date(h("date") || Date.now()),
-    snippet: (j.snippet ?? "").slice(0, 300),
+    snippet: unescapeHtml(j.snippet ?? "").slice(0, 300),
+    bulk: !!h("list-unsubscribe") || precedence === "bulk" || precedence === "list",
   };
 }
 
