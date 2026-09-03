@@ -74,6 +74,7 @@ from `anon` and `authenticated` in `0003`.
 | `/s/[token]` | Someone's shared log, read only, `noindex` |
 | `/reset` | Password reset landing, reached from the email link |
 | `/admin` | Redirects to `/app` (the route name from the single-user era) |
+| `/privacy`, `/terms` | Privacy and terms — the Gmail scan makes the privacy page a promise to Google as well |
 | `/api/gmail/connect` | Starts the Google OAuth consent flow for the signed-in user |
 | `/api/gmail/callback` | Google returns here; stores the encrypted refresh token |
 | `/api/gmail/scan` | Scans the connected mailbox for replies to logged applications |

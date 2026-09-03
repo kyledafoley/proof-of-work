@@ -61,7 +61,8 @@ export default async function LandingPage() {
           </Link>
         </div>
         <p className="fine-print">
-          Free. Your log is private until you share its link.
+          Free. Your log is private until you share its link.{" "}
+          <Link href="/privacy">Privacy</Link> &middot; <Link href="/terms">Terms</Link>
         </p>
       </header>
 
