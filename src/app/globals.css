@@ -875,6 +875,97 @@ body {
     margin-top: 10px;
   }
 
+  /* ---------- inbox scan ---------- */
+  .scan-groups {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .scan-group {
+    border: 1px solid var(--color-line-soft);
+    border-radius: 12px;
+    padding: 10px 12px 4px;
+  }
+  .scan-group-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-line-soft);
+  }
+  .scan-group-title {
+    font-size: 13.5px;
+    color: var(--color-ink-2);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .scan-group-title strong { color: var(--color-ink); }
+  .scan-row {
+    padding: 9px 0 8px;
+    border-bottom: 1px solid var(--color-line-soft);
+  }
+  .scan-row:last-child { border-bottom: 0; }
+  .scan-row-done { opacity: 0.55; }
+  .scan-row-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--color-ink-3);
+  }
+  .scan-when { font-family: var(--font-mono); }
+  .scan-from {
+    color: var(--color-ink-2);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .scan-subject {
+    display: block;
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-ink);
+    text-decoration: none;
+  }
+  .scan-subject:hover { text-decoration: underline; }
+  .scan-snippet {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    line-height: 1.4;
+    color: var(--color-ink-3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .scan-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 7px;
+    font-size: 12.5px;
+  }
+  .scan-alt { display: inline-flex; gap: 10px; }
+  .linkish {
+    background: none;
+    border: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 12.5px;
+    color: var(--color-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .linkish:hover { color: var(--color-ink); }
+
   .settings-grid {
     display: grid;
     gap: 11px;

@@ -37,6 +37,18 @@ is the `delete-account` edge function, which never accepts a user id — it
 derives the caller's identity from their own access token, so the most a request
 can do is delete its sender.
 
+**The Gmail scan holds one real secret, and holds it carefully.** Connecting
+Gmail stores a Google refresh token (scope `gmail.readonly`, nothing else).
+It is encrypted with AES-256-GCM under a key that lives only in the web app's
+environment (`GMAIL_TOKEN_KEY`), and the ciphertext column is excluded from
+the table grant — `select *` from a client fails. The only read path is
+`gmail_refresh_token()`, a definer function that returns the caller's own row.
+So the browser can see that Gmail is connected and to which address; the
+server routes can decrypt the signed-in user's token and nobody else's; and a
+dump of the table is useless without the environment. Scans store headers, a
+snippet and a classification per message — never a body — and none of it is
+reachable through the share functions.
+
 Five `security definer` linter warnings are expected and intentional: the two
 share functions (callable by `anon`, which is the whole point) and
 `rotate_share_token` (signed-in only). Every other function has been revoked
@@ -62,6 +74,10 @@ from `anon` and `authenticated` in `0003`.
 | `/s/[token]` | Someone's shared log, read only, `noindex` |
 | `/reset` | Password reset landing, reached from the email link |
 | `/admin` | Redirects to `/app` (the route name from the single-user era) |
+| `/api/gmail/connect` | Starts the Google OAuth consent flow for the signed-in user |
+| `/api/gmail/callback` | Google returns here; stores the encrypted refresh token |
+| `/api/gmail/scan` | Scans the connected mailbox for replies to logged applications |
+| `/api/gmail/disconnect` | Revokes the Google grant and deletes the token |
 
 ## Setup
 
@@ -69,7 +85,7 @@ from `anon` and `authenticated` in `0003`.
 
 Run the migrations in `supabase/migrations/` in order against a fresh Supabase
 project. `0001` creates the log, `0002` makes it multi-tenant, `0003` tightens
-function grants.
+function grants, `0004` adds the Gmail scan tables.
 
 ### 2. Edge function
 
@@ -102,7 +118,34 @@ npm install
 npm run dev
 ```
 
-### 5. Deploy
+### 5. Gmail scan (optional)
+
+The inbox scan needs a Google Cloud project with the Gmail API enabled and an
+OAuth client of type **Web application**:
+
+1. Google Cloud console → APIs & Services → Enable **Gmail API**.
+2. OAuth consent screen → External. Add the `gmail.readonly` scope. Leave the
+   app in **Testing** and add each Gmail address that will connect as a test
+   user (up to 100). Publishing with a restricted scope requires Google's
+   verification and a paid security assessment; testing mode needs neither.
+   The cost: Google expires refresh tokens for testing-mode apps after seven
+   days, so the panel will ask to reconnect about weekly.
+3. Credentials → Create OAuth client ID → Web application. Authorized redirect
+   URIs: `https://<your domain>/api/gmail/callback` and
+   `http://localhost:3000/api/gmail/callback`.
+4. Environment:
+
+```bash
+GOOGLE_CLIENT_ID=…apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=…
+GMAIL_TOKEN_KEY=$(openssl rand -base64 32)   # 32 bytes; rotating it invalidates stored tokens
+NEXT_PUBLIC_SITE_URL=https://imtrying.org    # must match the redirect URI exactly
+```
+
+Run `supabase/migrations/0004_gmail_scan.sql` against the database. Without
+the three Google variables the panel still renders; connecting just fails.
+
+### 6. Deploy
 
 Push to GitHub, import at [vercel.com/new](https://vercel.com/new), and set the
 same variables under Settings → Environment Variables.
@@ -132,3 +175,5 @@ npm run typecheck  # tsc --noEmit
   anywhere public — Supabase supports hCaptcha and Turnstile natively.
 - Any abuse reporting path for shared content.
 - Export (CSV / JSON) of your own log.
+- "Log it" from a possibly-missed message, prefilled with the sender's company.
+- Google OAuth verification, if the scan ever needs more than 100 test users.

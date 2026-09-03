@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import Dashboard from "@/components/Dashboard";
 import AuthPanel from "./AuthPanel";
 import JobDialog, { type Draft } from "./JobDialog";
+import EmailScanCard from "./EmailScanCard";
 import SettingsCard from "./SettingsCard";
 import ShareCard from "./ShareCard";
 import { createClient } from "@/lib/supabase/client";
@@ -148,6 +149,10 @@ export default function AppClient() {
             onProfileChange={patchProfile}
           />
         )}
+
+        {/* Below the share link, above settings: it is a working tool, not
+            a setting, and the thing you reach for after a quiet week. */}
+        <EmailScanCard supabase={supabase} apps={apps} onAppsChanged={load} />
 
         {showSettings && profile && (
           <SettingsCard
