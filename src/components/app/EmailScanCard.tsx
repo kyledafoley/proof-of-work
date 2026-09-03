@@ -81,6 +81,9 @@ export default function EmailScanCard({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showDismissed, setShowDismissed] = useState(false);
+  // On by default once a scan has completed: only mail since then. Off means
+  // the whole window again — for after a rule change, or when in doubt.
+  const [sinceLast, setSinceLast] = useState(true);
 
   const load = useCallback(async () => {
     const [{ data: c }, { data: m }, apps] = await Promise.all([
@@ -133,7 +136,11 @@ export default function EmailScanCard({
       for (;;) {
         rounds++;
         setProgress(rounds === 1 ? "Scanning…" : `Still scanning (round ${rounds})…`);
-        const res = await fetch("/api/gmail/scan", { method: "POST" });
+        const res = await fetch("/api/gmail/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sinceLast }),
+        });
         const j = (await res.json().catch(() => ({}))) as { ok?: boolean; found?: number; more?: boolean; error?: string };
         if (res.status === 409 && j.error === "reconnect") {
           setError("Google dropped the connection (this happens weekly while the app is unverified). Connect Gmail again.");
@@ -226,12 +233,21 @@ export default function EmailScanCard({
             {conn.last_scan_at
               ? `Last scanned ${new Date(conn.last_scan_at).toLocaleString()}.`
               : "Connected. Not scanned yet."}{" "}
-            A scan checks each application for mail mentioning the company since you applied,
-            then sweeps for job-shaped mail that matches nothing you logged.
+            A scan checks each application for mail mentioning the company, then sweeps for
+            job-shaped mail that matches nothing you logged.
           </p>
+          {conn.last_scan_at && (
+            <label className="scan-since">
+              <input type="checkbox" checked={sinceLast} onChange={(e) => setSinceLast(e.target.checked)} disabled={scanning} />
+              <span>
+                Only mail since the last scan
+                <span className="scan-since-note"> ({new Date(conn.last_scan_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}, with a day of overlap)</span>
+              </span>
+            </label>
+          )}
           <div className="share-actions">
             <button type="button" className="btn btn-small" onClick={scan} disabled={scanning}>
-              {progress ?? "Scan inbox"}
+              {progress ?? (conn.last_scan_at && sinceLast ? "Scan for new mail" : "Scan inbox")}
             </button>
             <button type="button" className="btn btn-ghost btn-small" onClick={disconnect} disabled={scanning}>
               Disconnect

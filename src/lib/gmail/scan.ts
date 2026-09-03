@@ -12,10 +12,13 @@ export type EmailKind = "interview" | "rejection" | "confirmation" | "reply" | "
  *  sent, not from the user, that mentions the company. Gmail's search covers
  *  the body, so "Acme" in a signature block is enough. The role is the
  *  fallback when the company is blank — weaker, but better than skipping. */
-export function queryFor(app: Application): string | null {
+export function queryFor(app: Application, sinceEpoch?: number): string | null {
   const term = phrase(app.company) ?? phrase(app.role);
   if (!term) return null;
-  const since = shiftDays(app.applied_on, -1);
+  // Gmail's after: takes a date or epoch seconds. The later of "the day
+  // before you applied" and "the last scan" bounds the search.
+  const applied = epochOf(app.applied_on) - 86400;
+  const since = Math.max(applied, sinceEpoch ?? 0);
   return `after:${since} -from:me -in:sent -in:chats -category:promotions -category:social ${term}`;
 }
 
@@ -23,7 +26,7 @@ export function queryFor(app: Application): string | null {
  *  application, whoever it is from. Deliberately narrow — the job boards
  *  themselves are excluded, since a digest of "new jobs for you" is exactly
  *  the noise this list must not fill up with. */
-export function sweepQuery(days = 45): string {
+export function sweepQuery(days = 45, sinceEpoch?: number): string {
   const subjects = [
     "your application", "application received", "application for", "application to",
     "interview", "next steps", "phone screen", "candidate", "position",
@@ -32,7 +35,8 @@ export function sweepQuery(days = 45): string {
     "linkedin.com", "indeed.com", "glassdoor.com", "ziprecruiter.com", "dice.com",
     "monster.com", "handshake.com", "wellfound.com", "builtin.com",
   ].map((d) => `-from:${d}`).join(" ");
-  return `newer_than:${days}d -from:me -in:sent -in:chats -category:promotions -category:social subject:(${subjects}) ${noise}`;
+  const window = sinceEpoch ? `after:${sinceEpoch}` : `newer_than:${days}d`;
+  return `${window} -from:me -in:sent -in:chats -category:promotions -category:social subject:(${subjects}) ${noise}`;
 }
 
 /** Quote a name for a Gmail query, dropping suffixes that a sender's domain
@@ -51,10 +55,8 @@ function phrase(raw: string | null): string | null {
   return `"${s}"`;
 }
 
-function shiftDays(ymd: string, days: number): string {
-  const d = new Date(`${ymd}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return `${d.getUTCFullYear()}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${String(d.getUTCDate()).padStart(2, "0")}`;
+function epochOf(ymd: string): number {
+  return Math.floor(new Date(`${ymd}T00:00:00Z`).getTime() / 1000);
 }
 
 /** What the message is, from subject + snippet. Order matters: a rejection

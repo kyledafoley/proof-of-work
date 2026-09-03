@@ -89,7 +89,8 @@ from `anon` and `authenticated` in `0003`.
 Run the migrations in `supabase/migrations/` in order against a fresh Supabase
 project. `0001` creates the log, `0002` makes it multi-tenant, `0003` tightens
 function grants, `0004` adds the Gmail scan tables, `0005` moves the token
-write path into a definer function.
+write path into a definer function, `0006` keeps the scan watermark across a
+reconnect.
 
 ### 2. Edge function
 
@@ -146,8 +147,8 @@ GMAIL_TOKEN_KEY=$(openssl rand -base64 32)   # 32 bytes; rotating it invalidates
 NEXT_PUBLIC_SITE_URL=https://imtrying.org    # must match the redirect URI exactly
 ```
 
-Run `supabase/migrations/0004_gmail_scan.sql` and `0005_gmail_connect_fn.sql`
-against the database. Without
+Run `supabase/migrations/0004_gmail_scan.sql`, `0005_gmail_connect_fn.sql`
+and `0006_keep_last_scan.sql` against the database. Without
 the three Google variables the panel still renders; connecting just fails.
 
 ### 6. Deploy

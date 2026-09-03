@@ -41,7 +41,13 @@ type Found = {
   kind: ReturnType<typeof classify>;
 };
 
-export async function POST() {
+/** How far back an incremental scan reaches behind the last scan. Mail can
+ *  arrive with a timestamp earlier than when it landed, and the duplicate
+ *  check on message id makes overlap free. */
+const OVERLAP_S = 24 * 3600;
+
+export async function POST(req: Request) {
+  const body = (await req.json().catch(() => ({}))) as { sinceLast?: boolean };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in first" }, { status: 401 });
@@ -58,14 +64,20 @@ export async function POST() {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Google error" }, { status: 502 });
   }
 
-  const [{ data: appsRaw }, { data: known }] = await Promise.all([
+  const [{ data: appsRaw }, { data: known }, { data: conn }] = await Promise.all([
     supabase.from("applications")
       .select("id, role, company, description, location, salary, applied_on, status")
       .order("applied_on", { ascending: false }),
     supabase.from("email_matches").select("gmail_message_id"),
+    supabase.from("gmail_connections").select("last_scan_at").maybeSingle(),
   ]);
   const apps = (appsRaw ?? []) as Application[];
   const seen = new Set((known ?? []).map((k: { gmail_message_id: string }) => k.gmail_message_id));
+  // Incremental by default once a full scan has completed: only mail since
+  // then (less a day of overlap). Unchecked in the panel, or before any scan
+  // has finished, it is the whole window again.
+  const lastScan = conn?.last_scan_at ? Math.floor(new Date(conn.last_scan_at as string).getTime() / 1000) : null;
+  const sinceEpoch = body.sinceLast !== false && lastScan ? lastScan - OVERLAP_S : undefined;
 
   const started = Date.now();
   const outOfTime = () => Date.now() - started > TIME_BUDGET_MS;
@@ -76,7 +88,7 @@ export async function POST() {
   try {
     for (const app of apps) {
       if (outOfTime()) { more = true; break; }
-      const q = queryFor(app);
+      const q = queryFor(app, sinceEpoch);
       if (!q) continue;
       checked++;
       const ids = await listMessageIds(accessToken, q, PER_APP_MAX);
@@ -110,7 +122,7 @@ export async function POST() {
     // message about a logged company is attributed before it can be filed
     // as "missed".
     if (!more) {
-      const ids = await listMessageIds(accessToken, sweepQuery(), SWEEP_MAX);
+      const ids = await listMessageIds(accessToken, sweepQuery(45, sinceEpoch), SWEEP_MAX);
       for (const id of ids) {
         if (seen.has(id)) continue;
         if (outOfTime()) { more = true; break; }
@@ -152,5 +164,5 @@ export async function POST() {
     await supabase.rpc("gmail_mark_scanned");
   }
 
-  return NextResponse.json({ ok: true, found: found.length, checked, more });
+  return NextResponse.json({ ok: true, found: found.length, checked, more, incremental: !!sinceEpoch });
 }
