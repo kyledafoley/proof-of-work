@@ -12,11 +12,19 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.redirect(new URL("/app", req.url));
 
   const state = randomBytes(16).toString("base64url");
-  const url = authUrl({
-    redirectUri: redirectUri(req.nextUrl.origin),
-    state,
-    loginHint: user.email ?? undefined,
-  });
+  let url: string;
+  try {
+    url = authUrl({
+      redirectUri: redirectUri(req.nextUrl.origin),
+      state,
+      loginHint: user.email ?? undefined,
+    });
+  } catch (e) {
+    // No Google credentials in this deployment. Say so on the panel rather
+    // than 500 — the feature is optional and the README explains the setup.
+    console.error("gmail connect:", e instanceof Error ? e.message : e);
+    return NextResponse.redirect(new URL("/app?gmail=unconfigured", req.url));
+  }
   const res = NextResponse.redirect(url);
   res.cookies.set("gmail_oauth_state", state, {
     httpOnly: true, sameSite: "lax", secure: req.nextUrl.protocol === "https:", path: "/api/gmail", maxAge: 600,

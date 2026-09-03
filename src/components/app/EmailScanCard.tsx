@@ -95,6 +95,7 @@ export default function EmailScanCard({
       denied: "Google didn't grant access — nothing was connected.",
       state: "That sign-in didn't start here, so it was ignored. Try again.",
       failed: "Google connected but saving the connection failed. Try again.",
+      unconfigured: "This deployment has no Google credentials yet, so Gmail can't be connected. (Owner: see the README's Gmail scan section.)",
     };
     setNotice(msg[flag] ?? null);
     url.searchParams.delete("gmail");

@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
   const expected = req.cookies.get("gmail_oauth_state")?.value;
   if (searchParams.get("error")) return back("denied");
   if (!code || !state || !expected || state !== expected) return back("state");
+  if (!process.env.GMAIL_TOKEN_KEY) return back("unconfigured");
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
