@@ -25,9 +25,12 @@ export async function GET(req: NextRequest) {
   try {
     const { accessToken, refreshToken } = await exchangeCode(code, redirectUri(req.nextUrl.origin));
     const { emailAddress } = await gmailProfile(accessToken);
-    const { error } = await supabase
-      .from("gmail_connections")
-      .upsert({ owner_id: user.id, email: emailAddress, refresh_token_enc: encryptToken(refreshToken), connected_at: new Date().toISOString() }, { onConflict: "owner_id" });
+    // Written through a definer function scoped to the caller — the token
+    // column is not writable (or readable) from the app's client directly.
+    const { error } = await supabase.rpc("gmail_connect", {
+      p_email: emailAddress,
+      p_token_enc: encryptToken(refreshToken),
+    });
     if (error) throw new Error(error.message);
   } catch (e) {
     console.error("gmail callback:", e instanceof Error ? e.message : e);

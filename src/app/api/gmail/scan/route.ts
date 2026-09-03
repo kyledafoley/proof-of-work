@@ -146,7 +146,7 @@ export async function POST() {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
   if (!more) {
-    await supabase.from("gmail_connections").update({ last_scan_at: new Date().toISOString() }).eq("owner_id", user.id);
+    await supabase.rpc("gmail_mark_scanned");
   }
 
   return NextResponse.json({ ok: true, found: found.length, checked, more });

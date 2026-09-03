@@ -42,7 +42,8 @@ Gmail stores a Google refresh token (scope `gmail.readonly`, nothing else).
 It is encrypted with AES-256-GCM under a key that lives only in the web app's
 environment (`GMAIL_TOKEN_KEY`), and the ciphertext column is excluded from
 the table grant — `select *` from a client fails. The only read path is
-`gmail_refresh_token()`, a definer function that returns the caller's own row.
+`gmail_refresh_token()`, a definer function that returns the caller's own row,
+and the only write path is `gmail_connect()`, its mirror image.
 So the browser can see that Gmail is connected and to which address; the
 server routes can decrypt the signed-in user's token and nobody else's; and a
 dump of the table is useless without the environment. Scans store headers, a
@@ -86,7 +87,8 @@ from `anon` and `authenticated` in `0003`.
 
 Run the migrations in `supabase/migrations/` in order against a fresh Supabase
 project. `0001` creates the log, `0002` makes it multi-tenant, `0003` tightens
-function grants, `0004` adds the Gmail scan tables.
+function grants, `0004` adds the Gmail scan tables, `0005` moves the token
+write path into a definer function.
 
 ### 2. Edge function
 
@@ -143,7 +145,8 @@ GMAIL_TOKEN_KEY=$(openssl rand -base64 32)   # 32 bytes; rotating it invalidates
 NEXT_PUBLIC_SITE_URL=https://imtrying.org    # must match the redirect URI exactly
 ```
 
-Run `supabase/migrations/0004_gmail_scan.sql` against the database. Without
+Run `supabase/migrations/0004_gmail_scan.sql` and `0005_gmail_connect_fn.sql`
+against the database. Without
 the three Google variables the panel still renders; connecting just fails.
 
 ### 6. Deploy
